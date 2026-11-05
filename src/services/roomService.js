@@ -12,11 +12,11 @@ const makeCode = () =>
   Array.from({ length: 5 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
 
 /** Player 1 membuat room baru (ular & tangga diacak di sini) */
-export async function createRoom(name) {
+export async function createRoom(name, avatar = 'cat') {
   const { snakes, ladders } = generateSnakesAndLadders();
   const { data, error } = await supabase
     .from('game_rooms')
-    .insert({ room_code: makeCode(), player1_name: name, snakes, ladders })
+    .insert({ room_code: makeCode(), player1_name: name, player1_avatar: avatar, snakes, ladders })
     .select()
     .single();
   if (error) throw error;
@@ -24,10 +24,10 @@ export async function createRoom(name) {
 }
 
 /** Player 2 bergabung dengan kode room */
-export async function joinRoom(code, name) {
+export async function joinRoom(code, name, avatar = 'cat') {
   const { data: room, error } = await supabase
     .from('game_rooms')
-    .select('*')
+    .select
     .eq('room_code', code.trim().toUpperCase())
     .single();
   if (error || !room) throw new Error('Room tidak ditemukan');
@@ -35,7 +35,7 @@ export async function joinRoom(code, name) {
 
   const { error: upErr } = await supabase
     .from('game_rooms')
-    .update({ player2_name: name })
+    .update({ player2_name: name, player2_avatar: avatar })
     .eq('id', room.id)
     .is('player2_name', null);
   if (upErr) throw upErr;

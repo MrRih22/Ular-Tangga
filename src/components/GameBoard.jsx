@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { useEffect, useMemo } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Text } from '@react-three/drei';
 import PlayerToken from './PlayerToken';
 import Connectors from './Connectors';
@@ -7,6 +7,21 @@ import { squareToXZ, TILE } from '../utils/GameEngine';
 
 const COLOR_A = '#f6d9e6';
 const COLOR_B = '#b88ad8';
+
+function FitCamera() {
+  const { camera, size, controls } = useThree();
+  useEffect(() => {
+    const aspect = size.width / size.height;
+    const t = Math.tan((camera.fov * Math.PI) / 360);
+    const need = 11.4; // lebar papan + margin
+    const dist = Math.max(need / (2 * t * aspect), (need * 0.8) / (2 * t)) * 1.1;
+    camera.position.set(0, dist * 0.82, dist * 0.58);
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+    controls?.update?.();
+  }, [size.width, size.height, camera, controls]);
+  return null;
+}
 
 function Tiles() {
   const tiles = useMemo(
@@ -52,14 +67,10 @@ function Tiles() {
 
 export default function GameBoard({ room }) {
   return (
-    <Canvas shadows camera={{ position: [0, 11, 10], fov: 45 }} dpr={[1, 2]}>
+    <Canvas shadows camera={{ position: [0, 11, 10], fov: 45 }} dpr={[1, 2]} style={{ touchAction: 'none' }}>
+      <FitCamera />
       <ambientLight intensity={0.7} />
-      <directionalLight
-        position={[6, 12, 6]}
-        intensity={1.3}
-        castShadow
-        shadow-mapSize={[1024, 1024]}
-      />
+      <directionalLight position={[6, 12, 6]} intensity={1.3} castShadow shadow-mapSize={[1024, 1024]} />
 
       <Tiles />
       <Connectors snakes={room.snakes} ladders={room.ladders} />
@@ -67,6 +78,7 @@ export default function GameBoard({ room }) {
       <PlayerToken
         square={room.player1_pos}
         name={room.player1_name}
+        avatar={room.player1_avatar || 'cat'}
         color="#ff4d8d"
         offsetX={-0.2}
       />
@@ -74,15 +86,17 @@ export default function GameBoard({ room }) {
         <PlayerToken
           square={room.player2_pos}
           name={room.player2_name}
+          avatar={room.player2_avatar || 'cat'}
           color="#4dc3ff"
           offsetX={0.2}
         />
       )}
 
       <OrbitControls
+        makeDefault
         enablePan={false}
-        minDistance={7}
-        maxDistance={18}
+        minDistance={5}
+        maxDistance={40}
         maxPolarAngle={Math.PI / 2.2}
       />
     </Canvas>
