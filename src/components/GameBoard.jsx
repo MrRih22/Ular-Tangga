@@ -4,7 +4,6 @@ import { OrbitControls, Text } from '@react-three/drei';
 import PlayerToken from './PlayerToken';
 import Connectors from './Connectors';
 import { squareToXZ, TILE } from '../utils/GameEngine';
-import Dice3D from './Dice3D';
 
 const COLOR_A = '#f6d9e6';
 const COLOR_B = '#b88ad8';
