@@ -42,7 +42,7 @@ export async function joinRoom(code, name, avatar = 'cat') {
   return { roomId: room.id, roomCode: room.room_code, me: 2 };
 }
 
-/** Ambil 1 pertanyaan acak */
+/** Ambil 1 kartu Truth/Dare acak */
 async function fetchRandomQuestion() {
   const { data, error } = await supabase.rpc('get_random_question');
   if (error || !data?.length) {
@@ -89,7 +89,7 @@ export async function rollAndMove(room, me) {
   // Tahap 3: ular / tangga
   if (final !== landing) {
     await supabase.from('game_rooms').update({ [posKey]: final }).eq('id', room.id);
-    await sleep(1200);
+    await sleep(1900); // waktu untuk animasi + suara naik tangga / turun ular
   }
 
   // Menang
@@ -101,7 +101,7 @@ export async function rollAndMove(room, me) {
     return;
   }
 
-  // Tahap 4: pertanyaan deep talk
+  // Tahap 4: kartu Truth or Dare
   const q = await fetchRandomQuestion();
   await supabase
     .from('game_rooms')
@@ -109,7 +109,7 @@ export async function rollAndMove(room, me) {
     .eq('id', room.id);
 }
 
-/** Tombol "Selesai Berdiskusi" -> giliran pemain berikutnya */
+/** Tombol "Selesai, lanjut!" -> giliran pemain berikutnya */
 export async function finishDiscussion(room) {
   await supabase
     .from('game_rooms')
