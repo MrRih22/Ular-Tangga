@@ -74,7 +74,6 @@ function Die({ value, playKey }) {
     );
 
     const bounce = Math.abs(Math.sin(t * Math.PI * 2.5)) * 1.4 * Math.pow(1 - t, 1.5);
-    // Mulai dari tengah-bawah agar selalu terlihat di layar HP maupun desktop
     g.position.set(-0.6 * k, bounce - 1.2 * k, 0);
   });
 
