@@ -78,8 +78,7 @@ function tone(t, dur, { type = 'sine', f0 = 440, f1 = null, gain = 0.25, attack 
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g);
   g.connect(out || master);
-<<<<<<< HEAD
-=======
+
   o.start(t);
   o.stop(t + dur + 0.05);
 }
