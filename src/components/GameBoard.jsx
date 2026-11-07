@@ -5,18 +5,18 @@ import PlayerToken from './PlayerToken';
 import Connectors from './Connectors';
 import { squareToXZ, TILE } from '../utils/GameEngine';
 
-// Palet warna papan yang lebih cerah & hangat
-const COLOR_A = '#fff8f0'; // Krem hangat
-const COLOR_B = '#ffd1dc'; // Pink pastel lembut
-const COLOR_START = '#bbf7d0'; // Hijau mint untuk Start
-const COLOR_FINISH = '#fde047'; // Emas cerah untuk Finish (100)
+// Palet warna papan profesional & kontras tinggi
+const COLOR_A = '#fffaf5';      // Ivory hangat
+const COLOR_B = '#ffe4e6';      // Rose pastel lembut
+const COLOR_START = '#dcfce7';  // Hijau mint lembut
+const COLOR_FINISH = '#fef08a'; // Emas lembut
 
 function FitCamera() {
   const { camera, size, controls } = useThree();
   useEffect(() => {
     const aspect = size.width / size.height;
     const t = Math.tan((camera.fov * Math.PI) / 360);
-    const need = 11.4; // lebar papan + margin
+    const need = 11.6;
     const dist = Math.max(need / (2 * t * aspect), (need * 0.8) / (2 * t)) * 1.1;
     camera.position.set(0, dist * 0.82, dist * 0.58);
     camera.lookAt(0, 0, 0);
@@ -26,56 +26,94 @@ function FitCamera() {
   return null;
 }
 
-/** Partikel latar belakang yang bergerak perlahan agar suasana hidup */
+/** 1. Latar belakang bintang & partikel melayang */
 function LivingBackground() {
   const groupRef = useRef();
 
   useFrame((_, delta) => {
     if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 0.025;
+      groupRef.current.rotation.y += delta * 0.02;
     }
   });
 
   return (
     <group ref={groupRef}>
-      {/* Bintang-bintang di kejauhan */}
-      <Stars radius={35} depth={30} count={1800} factor={3.5} saturation={0.6} fade speed={1.2} />
-
-      {/* Kilauan/kunang-kunang melayang di sekitar papan */}
-      <Sparkles
-        count={70}
-        scale={[18, 10, 18]}
-        size={4}
-        speed={0.45}
-        opacity={0.75}
-        color="#fde68a"
-      />
-      <Sparkles
-        count={45}
-        scale={[16, 8, 16]}
-        size={3.5}
-        speed={0.35}
-        opacity={0.65}
-        color="#f9a8d4"
-      />
+      <Stars radius={40} depth={30} count={2000} factor={3.5} saturation={0.5} fade speed={1} />
+      <Sparkles count={60} scale={[20, 10, 20]} size={3.5} speed={0.4} opacity={0.7} color="#fde68a" />
+      <Sparkles count={40} scale={[18, 8, 18]} size={3} speed={0.3} opacity={0.55} color="#7dd3fc" />
     </group>
   );
 }
 
-/** Ikon melayang di atas kotak 100 */
+/** 2. Cincin cahaya berputar pelan di bawah papan */
+function OrbitalRings() {
+  const ring1 = useRef();
+  const ring2 = useRef();
+
+  useFrame((_, delta) => {
+    if (ring1.current) ring1.current.rotation.z += delta * 0.12;
+    if (ring2.current) ring2.current.rotation.z -= delta * 0.08;
+  });
+
+  return (
+    <group position={[0, -0.45, 0]}>
+      <mesh ref={ring1} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[8.2, 8.32, 64]} />
+        <meshBasicMaterial color="#38bdf8" transparent opacity={0.28} />
+      </mesh>
+      <mesh ref={ring2} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[9.4, 9.5, 64]} />
+        <meshBasicMaterial color="#fb7185" transparent opacity={0.22} />
+      </mesh>
+    </group>
+  );
+}
+
+/** 3. Pilar kristal melayang di 4 sudut papan */
+function CornerCrystals() {
+  const corners = [
+    [-5.35, 0.55, -5.35, '#38bdf8'],
+    [5.35, 0.55, -5.35, '#fb7185'],
+    [-5.35, 0.55, 5.35, '#fb7185'],
+    [5.35, 0.55, 5.35, '#38bdf8'],
+  ];
+
+  return (
+    <group>
+      {corners.map(([x, y, z, color], idx) => (
+        <Float key={idx} speed={2.2} rotationIntensity={1.2} floatIntensity={0.45}>
+          <mesh position={[x, y, z]} castShadow>
+            <octahedronGeometry args={[0.26, 0]} />
+            <meshStandardMaterial
+              color={color}
+              emissive={color}
+              emissiveIntensity={0.5}
+              roughness={0.2}
+              metalness={0.6}
+            />
+          </mesh>
+        </Float>
+      ))}
+    </group>
+  );
+}
+
+/** 4. Mahkota berputar & melayang di atas kotak 100 */
 function FinishCrown() {
   const [x, z] = squareToXZ(100);
+  const ref = useRef();
+
+  useFrame((_, delta) => {
+    if (ref.current) ref.current.rotation.y += delta * 1.2;
+  });
+
   return (
-    <Float speed={3} rotationIntensity={0.4} floatIntensity={0.6}>
-      <Text
-        position={[x, 0.75, z]}
-        fontSize={0.55}
-        color="#e11d48"
-        anchorX="center"
-        anchorY="middle"
-      >
-        👑
-      </Text>
+    <Float speed={3} rotationIntensity={0.2} floatIntensity={0.5}>
+      <group ref={ref} position={[x, 0.72, z]}>
+        <Text fontSize={0.52} color="#e11d48" anchorX="center" anchorY="middle">
+          👑
+        </Text>
+      </group>
     </Float>
   );
 }
@@ -100,34 +138,40 @@ function Tiles() {
 
   return (
     <group>
-      {/* Bingkai luar papan (kayu/emas hangat) */}
-      <mesh receiveShadow position={[0, -0.18, 0]}>
-        <boxGeometry args={[10.9, 0.24, 10.9]} />
-        <meshStandardMaterial color="#78350f" roughness={0.45} metalness={0.15} />
+      {/* Bingkai luar kayu gelap elegan */}
+      <mesh receiveShadow position={[0, -0.22, 0]}>
+        <boxGeometry args={[11.1, 0.26, 11.1]} />
+        <meshStandardMaterial color="#271c19" roughness={0.45} metalness={0.2} />
       </mesh>
 
-      {/* Lapisan dalam papan */}
-      <mesh receiveShadow position={[0, -0.09, 0]}>
-        <boxGeometry args={[10.4, 0.12, 10.4]} />
-        <meshStandardMaterial color="#fef3c7" roughness={0.5} />
+      {/* Lis emas di sekeliling papan */}
+      <mesh receiveShadow position={[0, -0.11, 0]}>
+        <boxGeometry args={[10.55, 0.14, 10.55]} />
+        <meshStandardMaterial color="#d97706" roughness={0.3} metalness={0.65} />
+      </mesh>
+
+      {/* Dasar papan */}
+      <mesh receiveShadow position={[0, -0.07, 0]}>
+        <boxGeometry args={[10.25, 0.1, 10.25]} />
+        <meshStandardMaterial color="#fff1f2" roughness={0.5} />
       </mesh>
 
       {tiles.map((t) => (
         <group key={t.n} position={[t.x, 0, t.z]}>
           <mesh receiveShadow>
-            <boxGeometry args={[TILE * 0.94, 0.14, TILE * 0.94]} />
+            <boxGeometry args={[TILE * 0.93, 0.13, TILE * 0.93]} />
             <meshStandardMaterial
               color={t.color}
-              roughness={0.4}
+              roughness={0.35}
               metalness={t.n === 100 ? 0.25 : 0.05}
             />
           </mesh>
           <Text
-            position={[0, 0.08, 0]}
+            position={[0, 0.075, 0]}
             rotation={[-Math.PI / 2, 0, 0]}
-            fontSize={0.26}
+            fontSize={t.n === 1 ? 0.2 : 0.25}
             fontWeight="bold"
-            color={t.n === 100 ? '#be123c' : t.n === 1 ? '#15803d' : '#4a2545'}
+            color={t.n === 100 ? '#be123c' : t.n === 1 ? '#15803d' : '#3f2a38'}
             anchorX="center"
             anchorY="middle"
           >
@@ -143,7 +187,7 @@ function Tiles() {
 
 export default function GameBoard({ room }) {
   return (
-    <div className="relative h-full w-full bg-gradient-to-b from-slate-950 via-sky-950 to-indigo-950">
+    <div className="relative h-full w-full bg-gradient-to-b from-slate-950 via-slate-900 to-sky-950">
       <Canvas
         shadows
         gl={{ alpha: true, antialias: true }}
@@ -152,20 +196,23 @@ export default function GameBoard({ room }) {
         style={{ touchAction: 'none' }}
       >
         <FitCamera />
+        <fog attach="fog" args={['#082f49', 22, 55]} />
 
-        {/* Pencahayaan lebih hangat & hidup */}
-        <ambientLight intensity={0.8} />
+        {/* Three-point lighting */}
+        <ambientLight intensity={0.75} />
         <directionalLight
-          position={[6, 14, 8]}
-          intensity={1.4}
+          position={[7, 15, 8]}
+          intensity={1.5}
           color="#fffbeb"
           castShadow
           shadow-mapSize={[1024, 1024]}
         />
-        <pointLight position={[-6, 6, -6]} intensity={0.6} color="#f9a8d4" />
-        <pointLight position={[6, 6, 6]} intensity={0.5} color="#7dd3fc" />
+        <pointLight position={[-7, 6, -7]} intensity={0.7} color="#fda4af" />
+        <pointLight position={[7, 6, 7]} intensity={0.6} color="#7dd3fc" />
 
         <LivingBackground />
+        <OrbitalRings />
+        <CornerCrystals />
         <Tiles />
         <Connectors snakes={room.snakes} ladders={room.ladders} />
 
