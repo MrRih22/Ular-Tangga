@@ -1,120 +1,149 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Text, Sparkles, Stars, Float } from '@react-three/drei';
+import { OrbitControls, Text, Sparkles, Stars, Float, RoundedBox } from '@react-three/drei';
+import { Vector3 } from 'three';
 import PlayerToken from './PlayerToken';
 import Connectors from './Connectors';
 import { squareToXZ, TILE } from '../utils/GameEngine';
 
-// Palet warna papan profesional & kontras tinggi
-const COLOR_A = '#fffaf5';      // Ivory hangat
-const COLOR_B = '#ffe4e6';      // Rose pastel lembut
-const COLOR_START = '#dcfce7';  // Hijau mint lembut
-const COLOR_FINISH = '#fef08a'; // Emas lembut
+// Palet warna cerah ala game kasual App Store / Play Store
+const COLOR_A = '#ffffff';      // Putih bersih
+const COLOR_B = '#ffe4ec';      // Pink pastel cerah
+const COLOR_START = '#bbf7d0';  // Hijau cerah
+const COLOR_FINISH = '#fde047'; // Emas cerah
 
-function FitCamera() {
+/** Kamera dinamis: otomatis menyesuaikan layar & mengikuti pion saat fase 'moving' */
+function CameraRig({ room }) {
   const { camera, size, controls } = useThree();
+  const targetPos = useRef(new Vector3(0, 0, 0));
+  const defaultCam = useRef(new Vector3(0, 11, 10));
+
   useEffect(() => {
     const aspect = size.width / size.height;
     const t = Math.tan((camera.fov * Math.PI) / 360);
     const need = 11.6;
     const dist = Math.max(need / (2 * t * aspect), (need * 0.8) / (2 * t)) * 1.1;
-    camera.position.set(0, dist * 0.82, dist * 0.58);
-    camera.lookAt(0, 0, 0);
-    camera.updateProjectionMatrix();
-    controls?.update?.();
-  }, [size.width, size.height, camera, controls]);
+    defaultCam.current.set(0, dist * 0.82, dist * 0.58);
+
+    if (room.phase !== 'moving') {
+      camera.position.copy(defaultCam.current);
+      camera.lookAt(0, 0, 0);
+      camera.updateProjectionMatrix();
+      controls?.update?.();
+    }
+  }, [size.width, size.height, camera, controls, room.phase]);
+
+  useFrame((_, delta) => {
+    if (!controls) return;
+
+    // Saat fase 'moving', kamera sedikit zoom & mengarah ke pion yang sedang jalan
+    if (room.phase === 'moving') {
+      const activeSq = room.current_turn === 1 ? room.player1_pos : room.player2_pos;
+      const [px, pz] = squareToXZ(activeSq || 1);
+      targetPos.current.set(px * 0.45, 0, pz * 0.45);
+    } else {
+      targetPos.current.set(0, 0, 0);
+    }
+
+    // Geser titik fokus kamera dengan sangat halus (lerp)
+    controls.target.lerp(targetPos.current, Math.min(1, delta * 3.5));
+    controls.update();
+  });
+
   return null;
 }
 
-/** 1. Latar belakang bintang & partikel melayang */
+/** Animasi masuk papan (efek pop-in membal ala game mobile) */
+function BoardEntrance({ children }) {
+  const groupRef = useRef();
+  const progress = useRef(0);
+
+  useFrame((_, delta) => {
+    if (!groupRef.current || progress.current >= 1) return;
+    progress.current = Math.min(1, progress.current + delta * 1.8);
+    // Ease-out back (sedikit membal di akhir)
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    const t = progress.current;
+    const ease = 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+
+    groupRef.current.scale.set(ease, ease, ease);
+    groupRef.current.position.y = (1 - Math.min(1, t)) * -0.5;
+  });
+
+  return <group ref={groupRef}>{children}</group>;
+}
+
+/** Latar belakang bintang & partikel melayang */
 function LivingBackground() {
   const groupRef = useRef();
 
   useFrame((_, delta) => {
     if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 0.02;
+      groupRef.current.rotation.y += delta * 0.015;
     }
   });
 
   return (
     <group ref={groupRef}>
-      <Stars radius={40} depth={30} count={2000} factor={3.5} saturation={0.5} fade speed={1} />
-      <Sparkles count={60} scale={[20, 10, 20]} size={3.5} speed={0.4} opacity={0.7} color="#fde68a" />
-      <Sparkles count={40} scale={[18, 8, 18]} size={3} speed={0.3} opacity={0.55} color="#7dd3fc" />
+      <Stars radius={42} depth={30} count={2000} factor={3.5} saturation={0.5} fade speed={0.8} />
+      <Sparkles count={50} scale={[22, 12, 22]} size={3.5} speed={0.35} opacity={0.65} color="#fde68a" />
+      <Sparkles count={35} scale={[18, 9, 18]} size={3} speed={0.25} opacity={0.5} color="#7dd3fc" />
     </group>
   );
 }
 
-/** 2. Cincin cahaya berputar pelan di bawah papan */
-function OrbitalRings() {
-  const ring1 = useRef();
-  const ring2 = useRef();
+/** Sorotan cahaya berdenyut di bawah pion yang sedang mendapat giliran */
+function ActiveTurnHalo({ square, color }) {
+  const ref = useRef();
+  const [x, z] = squareToXZ(square || 0);
 
-  useFrame((_, delta) => {
-    if (ring1.current) ring1.current.rotation.z += delta * 0.12;
-    if (ring2.current) ring2.current.rotation.z -= delta * 0.08;
+  useFrame(({ clock }) => {
+    if (!ref.current) return;
+    const t = clock.getElapsedTime();
+    const s = 1 + Math.sin(t * 4.5) * 0.12;
+    ref.current.scale.set(s, s, 1);
+    ref.current.material.opacity = 0.5 + Math.sin(t * 4.5) * 0.25;
   });
 
+  if (!square || square <= 0) return null;
+
   return (
-    <group position={[0, -0.45, 0]}>
-      <mesh ref={ring1} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[8.2, 8.32, 64]} />
-        <meshBasicMaterial color="#38bdf8" transparent opacity={0.28} />
-      </mesh>
-      <mesh ref={ring2} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[9.4, 9.5, 64]} />
-        <meshBasicMaterial color="#fb7185" transparent opacity={0.22} />
-      </mesh>
-    </group>
+    <mesh ref={ref} position={[x, 0.085, z]} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[0.32, 0.44, 32]} />
+      <meshBasicMaterial color={color} transparent opacity={0.7} />
+    </mesh>
   );
 }
 
-/** 3. Pilar kristal melayang di 4 sudut papan */
-function CornerCrystals() {
-  const corners = [
-    [-5.35, 0.55, -5.35, '#38bdf8'],
-    [5.35, 0.55, -5.35, '#fb7185'],
-    [-5.35, 0.55, 5.35, '#fb7185'],
-    [5.35, 0.55, 5.35, '#38bdf8'],
-  ];
+/** Mahkota berputar & halo emas di atas kotak 100 */
+function FinishCrown() {
+  const [x, z] = squareToXZ(100);
+  const crownRef = useRef();
+  const haloRef = useRef();
+
+  useFrame(({ clock }, delta) => {
+    if (crownRef.current) crownRef.current.rotation.y += delta * 1.2;
+    if (haloRef.current) {
+      const s = 1 + Math.sin(clock.getElapsedTime() * 3) * 0.08;
+      haloRef.current.scale.set(s, s, 1);
+    }
+  });
 
   return (
     <group>
-      {corners.map(([x, y, z, color], idx) => (
-        <Float key={idx} speed={2.2} rotationIntensity={1.2} floatIntensity={0.45}>
-          <mesh position={[x, y, z]} castShadow>
-            <octahedronGeometry args={[0.26, 0]} />
-            <meshStandardMaterial
-              color={color}
-              emissive={color}
-              emissiveIntensity={0.5}
-              roughness={0.2}
-              metalness={0.6}
-            />
-          </mesh>
-        </Float>
-      ))}
+      <mesh ref={haloRef} position={[x, 0.085, z]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.34, 0.44, 32]} />
+        <meshBasicMaterial color="#f59e0b" transparent opacity={0.75} />
+      </mesh>
+      <Float speed={3} rotationIntensity={0.15} floatIntensity={0.45}>
+        <group ref={crownRef} position={[x, 0.72, z]}>
+          <Text fontSize={0.5} color="#e11d48" anchorX="center" anchorY="middle">
+            👑
+          </Text>
+        </group>
+      </Float>
     </group>
-  );
-}
-
-/** 4. Mahkota berputar & melayang di atas kotak 100 */
-function FinishCrown() {
-  const [x, z] = squareToXZ(100);
-  const ref = useRef();
-
-  useFrame((_, delta) => {
-    if (ref.current) ref.current.rotation.y += delta * 1.2;
-  });
-
-  return (
-    <Float speed={3} rotationIntensity={0.2} floatIntensity={0.5}>
-      <group ref={ref} position={[x, 0.72, z]}>
-        <Text fontSize={0.52} color="#e11d48" anchorX="center" anchorY="middle">
-          👑
-        </Text>
-      </group>
-    </Float>
   );
 }
 
@@ -138,21 +167,19 @@ function Tiles() {
 
   return (
     <group>
-      {/* Bingkai luar kayu gelap elegan */}
-      <mesh receiveShadow position={[0, -0.22, 0]}>
-        <boxGeometry args={[11.1, 0.26, 11.1]} />
-        <meshStandardMaterial color="#271c19" roughness={0.45} metalness={0.2} />
-      </mesh>
+      {/* Bingkai papan membulat (RoundedBox) ala game mobile modern */}
+      <RoundedBox args={[11.1, 0.28, 11.1]} radius={0.25} smoothness={4} position={[0, -0.22, 0]} receiveShadow>
+        <meshStandardMaterial color="#1e1b4b" roughness={0.4} metalness={0.2} />
+      </RoundedBox>
 
-      {/* Lis emas di sekeliling papan */}
-      <mesh receiveShadow position={[0, -0.11, 0]}>
-        <boxGeometry args={[10.55, 0.14, 10.55]} />
-        <meshStandardMaterial color="#d97706" roughness={0.3} metalness={0.65} />
-      </mesh>
+      {/* Lis emas/kuning cerah */}
+      <RoundedBox args={[10.55, 0.16, 10.55]} radius={0.15} smoothness={4} position={[0, -0.11, 0]} receiveShadow>
+        <meshStandardMaterial color="#f59e0b" roughness={0.3} metalness={0.5} />
+      </RoundedBox>
 
       {/* Dasar papan */}
       <mesh receiveShadow position={[0, -0.07, 0]}>
-        <boxGeometry args={[10.25, 0.1, 10.25]} />
+        <boxGeometry args={[10.2, 0.1, 10.2]} />
         <meshStandardMaterial color="#fff1f2" roughness={0.5} />
       </mesh>
 
@@ -163,7 +190,7 @@ function Tiles() {
             <meshStandardMaterial
               color={t.color}
               roughness={0.35}
-              metalness={t.n === 100 ? 0.25 : 0.05}
+              metalness={t.n === 100 ? 0.2 : 0.05}
             />
           </mesh>
           <Text
@@ -186,8 +213,11 @@ function Tiles() {
 }
 
 export default function GameBoard({ room }) {
+  const activeSquare = room.current_turn === 1 ? room.player1_pos : room.player2_pos;
+  const activeColor = room.current_turn === 1 ? '#ff4d8d' : '#4dc3ff';
+
   return (
-    <div className="relative h-full w-full bg-gradient-to-b from-slate-950 via-slate-900 to-sky-950">
+    <div className="relative h-full w-full bg-gradient-to-b from-slate-950 via-sky-950 to-indigo-950">
       <Canvas
         shadows
         gl={{ alpha: true, antialias: true }}
@@ -195,11 +225,10 @@ export default function GameBoard({ room }) {
         dpr={[1, 2]}
         style={{ touchAction: 'none' }}
       >
-        <FitCamera />
-        <fog attach="fog" args={['#082f49', 22, 55]} />
+        <CameraRig room={room} />
+        <fog attach="fog" args={['#082f49', 24, 58]} />
 
-        {/* Three-point lighting */}
-        <ambientLight intensity={0.75} />
+        <ambientLight intensity={0.85} />
         <directionalLight
           position={[7, 15, 8]}
           intensity={1.5}
@@ -207,35 +236,39 @@ export default function GameBoard({ room }) {
           castShadow
           shadow-mapSize={[1024, 1024]}
         />
-        <pointLight position={[-7, 6, -7]} intensity={0.7} color="#fda4af" />
+        <pointLight position={[-7, 6, -7]} intensity={0.6} color="#fda4af" />
         <pointLight position={[7, 6, 7]} intensity={0.6} color="#7dd3fc" />
 
         <LivingBackground />
-        <OrbitalRings />
-        <CornerCrystals />
-        <Tiles />
-        <Connectors snakes={room.snakes} ladders={room.ladders} />
 
-        <PlayerToken
-          square={room.player1_pos}
-          name={room.player1_name}
-          avatar={room.player1_avatar || 'cat'}
-          color="#ff4d8d"
-          offsetX={-0.2}
-        />
-        {room.player2_name && (
+        <BoardEntrance>
+          <Tiles />
+          <ActiveTurnHalo square={activeSquare} color={activeColor} />
+          <Connectors snakes={room.snakes} ladders={room.ladders} />
+
           <PlayerToken
-            square={room.player2_pos}
-            name={room.player2_name}
-            avatar={room.player2_avatar || 'cat'}
-            color="#4dc3ff"
-            offsetX={0.2}
+            square={room.player1_pos}
+            name={room.player1_name}
+            avatar={room.player1_avatar || 'cat'}
+            color="#ff4d8d"
+            offsetX={-0.2}
           />
-        )}
+          {room.player2_name && (
+            <PlayerToken
+              square={room.player2_pos}
+              name={room.player2_name}
+              avatar={room.player2_avatar || 'cat'}
+              color="#4dc3ff"
+              offsetX={0.2}
+            />
+          )}
+        </BoardEntrance>
 
         <OrbitControls
           makeDefault
           enablePan={false}
+          enableDamping
+          dampingFactor={0.07}
           minDistance={5}
           maxDistance={40}
           maxPolarAngle={Math.PI / 2.2}
