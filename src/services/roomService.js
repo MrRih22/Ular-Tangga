@@ -42,11 +42,20 @@ export async function joinRoom(code, name, avatar = 'cat') {
   return { roomId: room.id, roomCode: room.room_code, me: 2 };
 }
 
-/** Ambil 1 kartu Truth/Dare acak */
-async function fetchRandomQuestion() {
-  const { data, error } = await supabase.rpc('get_random_question');
-  if (error || !data?.length) {
-    return { id: 0, kind: 'truth', category: 'receh', question: 'Ceritakan hal paling memalukan yang pernah kamu lakukan!' };
+/**
+ * Ambil 1 kartu Truth/Dare acak yang BELUM pernah muncul di room ini.
+ * (Pencatatan kartu yang sudah keluar dilakukan di database lewat draw_question)
+ */
+async function fetchRandomQuestion(roomId) {
+  const { data, error } = await supabase.rpc('draw_question', { p_room: roomId });
+  if (error || !data || (Array.isArray(data) && !data.length)) {
+    if (error) console.error('draw_question gagal:', error);
+    return {
+      id: 0,
+      kind: 'truth',
+      category: 'receh',
+      question: 'Ceritakan hal paling memalukan yang pernah kamu lakukan!',
+    };
   }
   const q = Array.isArray(data) ? data[0] : data;
   return { id: q.id, kind: q.kind, question: q.question, category: q.category };
@@ -101,8 +110,8 @@ export async function rollAndMove(room, me) {
     return;
   }
 
-  // Tahap 4: kartu Truth or Dare
-  const q = await fetchRandomQuestion();
+  // Tahap 4: kartu Truth or Dare (tidak berulang di room ini)
+  const q = await fetchRandomQuestion(room.id);
   await supabase
     .from('game_rooms')
     .update({ phase: 'question', current_question: q })
