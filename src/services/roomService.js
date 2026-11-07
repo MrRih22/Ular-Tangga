@@ -27,7 +27,7 @@ export async function createRoom(name, avatar = 'cat') {
 export async function joinRoom(code, name, avatar = 'cat') {
   const { data: room, error } = await supabase
     .from('game_rooms')
-    .select
+    .select('*')
     .eq('room_code', code.trim().toUpperCase())
     .single();
   if (error || !room) throw new Error('Room tidak ditemukan');
