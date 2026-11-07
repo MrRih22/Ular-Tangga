@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { CanvasTexture, SRGBColorSpace } from 'three';
-import { DICE_MS } from '../utils/GameEngine';
+import { DICE_MS as ENGINE_DICE_MS } from '../utils/GameEngine';
+
+const DICE_DURATION = ENGINE_DICE_MS || 1200;
 
 // Nilai tiap sisi kubus: +x, -x, +y, -y, +z, -z (sisi berlawanan jumlahnya 7)
 const FACE_VALUES = [2, 5, 1, 6, 3, 4];
@@ -61,8 +63,8 @@ function Die({ value, playKey }) {
   useFrame(() => {
     const g = ref.current;
     if (!g) return;
-    const t = Math.min((performance.now() - start.current) / DICE_MS, 1);
-    const k = Math.pow(1 - t, 3); // sisa jarak (ease-out)
+    const t = Math.min((performance.now() - start.current) / DICE_DURATION, 1);
+    const k = Math.pow(1 - t, 3);
     const [fx, fy, fz] = FINAL_ROT[value] || [0, 0, 0];
 
     g.rotation.set(
@@ -71,8 +73,9 @@ function Die({ value, playKey }) {
       fz + spin.current[2] * k
     );
 
-    const bounce = Math.abs(Math.sin(t * Math.PI * 2.5)) * 1.6 * Math.pow(1 - t, 1.5);
-    g.position.set(-2.8 * k, bounce - 2.4 * k, 0);
+    const bounce = Math.abs(Math.sin(t * Math.PI * 2.5)) * 1.4 * Math.pow(1 - t, 1.5);
+    // Mulai dari tengah-bawah agar selalu terlihat di layar HP maupun desktop
+    g.position.set(-0.6 * k, bounce - 1.2 * k, 0);
   });
 
   return (
@@ -89,14 +92,19 @@ export default function DiceOverlay({ phase, value, onStart, onLanded }) {
   const [play, setPlay] = useState({ key: 0, value: 1, visible: false });
   const valRef = useRef(value);
   valRef.current = value;
-  const prev = useRef(phase);
+  const prev = useRef(null);
 
   useEffect(() => {
     if (phase === 'moving' && prev.current !== 'moving') {
       setPlay((p) => ({ key: p.key + 1, value: valRef.current || 1, visible: true }));
       onStart?.();
-      setTimeout(() => onLanded?.(), DICE_MS);
-      setTimeout(() => setPlay((p) => ({ ...p, visible: false })), DICE_MS + 1100);
+      const t1 = setTimeout(() => onLanded?.(), DICE_DURATION);
+      const t2 = setTimeout(() => setPlay((p) => ({ ...p, visible: false })), DICE_DURATION + 1100);
+      prev.current = phase;
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     }
     prev.current = phase;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -105,9 +113,9 @@ export default function DiceOverlay({ phase, value, onStart, onLanded }) {
   if (!play.visible) return null;
 
   return (
-    <div className="fixed inset-0 z-20 pointer-events-none bg-black/20">
-      <Canvas gl={{ alpha: true }} camera={{ position: [0, 0, 7], fov: 40 }}>
-        <ambientLight intensity={1.0} />
+    <div className="fixed inset-0 z-50 pointer-events-none bg-black/20">
+      <Canvas gl={{ alpha: true, antialias: true }} camera={{ position: [0, 0, 7], fov: 40 }}>
+        <ambientLight intensity={1.2} />
         <directionalLight position={[3, 5, 6]} intensity={1.6} />
         <Die value={play.value} playKey={play.key} />
       </Canvas>
