@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import GameBoard from './GameBoard';
+import Dice3D from './Dice3D';
 import QuestionModal from './QuestionModal';
 import VoiceChat from './VoiceChat';
 import { useRoom } from '../hooks/useRoom';
@@ -65,6 +66,7 @@ export default function GameScreen({ session, onLeave }) {
   return (
     <div className="relative h-full w-full">
       <GameBoard room={room} />
+      <Dice3D phase={room.phase} value={room.last_dice} />
 
       {/* Header */}
       <div className="absolute top-0 inset-x-0 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] flex items-start justify-between pointer-events-none">
