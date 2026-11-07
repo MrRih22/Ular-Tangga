@@ -44,18 +44,13 @@ export async function joinRoom(code, name, avatar = 'cat') {
 
 /**
  * Ambil 1 kartu Truth/Dare acak yang BELUM pernah muncul di room ini.
- * Mengembalikan null jika semua 100 kartu sudah terpakai.
+ * Mengembalikan null jika terjadi error atau semua 100 kartu sudah terpakai.
  */
 async function fetchRandomQuestion(roomId) {
   const { data, error } = await supabase.rpc('draw_question', { p_room: roomId });
   if (error) {
     console.error('draw_question gagal:', error);
-    return {
-      id: 0,
-      kind: 'truth',
-      category: 'receh',
-      question: 'Ceritakan hal paling memalukan yang pernah kamu lakukan!',
-    };
+    return null;
   }
 
   // Jika semua 100 kartu sudah habis, kembalikan null
@@ -119,7 +114,7 @@ export async function rollAndMove(room, me) {
   // Tahap 4: kartu Truth or Dare (tidak berulang di room ini)
   const q = await fetchRandomQuestion(room.id);
 
-  // Jika kartu sudah habis (null), langsung ganti giliran tanpa memunculkan kartu
+  // Jika kartu sudah habis (null) atau gagal diambil, langsung ganti giliran
   if (!q) {
     await supabase
       .from('game_rooms')
