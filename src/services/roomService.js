@@ -45,9 +45,11 @@ export async function joinRoom(code, name, avatar = 'cat') {
 /** Ambil 1 pertanyaan acak */
 async function fetchRandomQuestion() {
   const { data, error } = await supabase.rpc('get_random_question');
-  if (error || !data?.length) return { id: 0, question: 'Ceritakan hal yang kamu syukuri hari ini.', category: 'umum' };
+  if (error || !data?.length) {
+    return { id: 0, kind: 'truth', category: 'receh', question: 'Ceritakan hal paling memalukan yang pernah kamu lakukan!' };
+  }
   const q = Array.isArray(data) ? data[0] : data;
-  return { id: q.id, question: q.question, category: q.category };
+  return { id: q.id, kind: q.kind, question: q.question, category: q.category };
 }
 
 /**
