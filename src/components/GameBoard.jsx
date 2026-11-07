@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Text, Sparkles, Stars, Float, RoundedBox } from '@react-three/drei';
+import { OrbitControls, Text, Sparkles, Stars, Float } from '@react-three/drei';
 import { Vector3 } from 'three';
 import PlayerToken from './PlayerToken';
 import Connectors from './Connectors';
 import { squareToXZ, TILE } from '../utils/GameEngine';
 
-// Palet warna cerah ala game kasual App Store / Play Store
 const COLOR_A = '#ffffff';      // Putih bersih
 const COLOR_B = '#ffe4ec';      // Pink pastel cerah
 const COLOR_START = '#bbf7d0';  // Hijau cerah
@@ -16,27 +15,21 @@ const COLOR_FINISH = '#fde047'; // Emas cerah
 function CameraRig({ room }) {
   const { camera, size, controls } = useThree();
   const targetPos = useRef(new Vector3(0, 0, 0));
-  const defaultCam = useRef(new Vector3(0, 11, 10));
 
   useEffect(() => {
     const aspect = size.width / size.height;
     const t = Math.tan((camera.fov * Math.PI) / 360);
     const need = 11.6;
     const dist = Math.max(need / (2 * t * aspect), (need * 0.8) / (2 * t)) * 1.1;
-    defaultCam.current.set(0, dist * 0.82, dist * 0.58);
-
-    if (room.phase !== 'moving') {
-      camera.position.copy(defaultCam.current);
-      camera.lookAt(0, 0, 0);
-      camera.updateProjectionMatrix();
-      controls?.update?.();
-    }
-  }, [size.width, size.height, camera, controls, room.phase]);
+    camera.position.set(0, dist * 0.82, dist * 0.58);
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+    if (controls) controls.update();
+  }, [size.width, size.height, camera, controls]);
 
   useFrame((_, delta) => {
-    if (!controls) return;
+    if (!controls || !controls.target) return;
 
-    // Saat fase 'moving', kamera sedikit zoom & mengarah ke pion yang sedang jalan
     if (room.phase === 'moving') {
       const activeSq = room.current_turn === 1 ? room.player1_pos : room.player2_pos;
       const [px, pz] = squareToXZ(activeSq || 1);
@@ -45,15 +38,13 @@ function CameraRig({ room }) {
       targetPos.current.set(0, 0, 0);
     }
 
-    // Geser titik fokus kamera dengan sangat halus (lerp)
     controls.target.lerp(targetPos.current, Math.min(1, delta * 3.5));
-    controls.update();
   });
 
   return null;
 }
 
-/** Animasi masuk papan (efek pop-in membal ala game mobile) */
+/** Animasi masuk papan yang aman */
 function BoardEntrance({ children }) {
   const groupRef = useRef();
   const progress = useRef(0);
@@ -61,14 +52,10 @@ function BoardEntrance({ children }) {
   useFrame((_, delta) => {
     if (!groupRef.current || progress.current >= 1) return;
     progress.current = Math.min(1, progress.current + delta * 1.8);
-    // Ease-out back (sedikit membal di akhir)
-    const c1 = 1.70158;
-    const c3 = c1 + 1;
-    const t = progress.current;
-    const ease = 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-
-    groupRef.current.scale.set(ease, ease, ease);
-    groupRef.current.position.y = (1 - Math.min(1, t)) * -0.5;
+    const ease = 1 - Math.pow(1 - progress.current, 3);
+    const s = 0.9 + 0.1 * ease;
+    groupRef.current.scale.set(s, s, s);
+    groupRef.current.position.y = (1 - ease) * -0.4;
   });
 
   return <group ref={groupRef}>{children}</group>;
@@ -167,15 +154,17 @@ function Tiles() {
 
   return (
     <group>
-      {/* Bingkai papan membulat (RoundedBox) ala game mobile modern */}
-      <RoundedBox args={[11.1, 0.28, 11.1]} radius={0.25} smoothness={4} position={[0, -0.22, 0]} receiveShadow>
+      {/* Bingkai luar papan */}
+      <mesh receiveShadow position={[0, -0.22, 0]}>
+        <boxGeometry args={[11.1, 0.26, 11.1]} />
         <meshStandardMaterial color="#1e1b4b" roughness={0.4} metalness={0.2} />
-      </RoundedBox>
+      </mesh>
 
       {/* Lis emas/kuning cerah */}
-      <RoundedBox args={[10.55, 0.16, 10.55]} radius={0.15} smoothness={4} position={[0, -0.11, 0]} receiveShadow>
+      <mesh receiveShadow position={[0, -0.11, 0]}>
+        <boxGeometry args={[10.55, 0.14, 10.55]} />
         <meshStandardMaterial color="#f59e0b" roughness={0.3} metalness={0.5} />
-      </RoundedBox>
+      </mesh>
 
       {/* Dasar papan */}
       <mesh receiveShadow position={[0, -0.07, 0]}>
