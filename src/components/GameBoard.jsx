@@ -100,8 +100,6 @@ export default function GameBoard({ room }) {
         maxDistance={40}
         maxPolarAngle={Math.PI / 2.2}
       />
-
-      <Dice3D phase={room.phase} value={room.last_dice} />
     </Canvas>
   );
 }
