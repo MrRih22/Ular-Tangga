@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { CatmullRomCurve3, Vector3 } from 'three';
 import { squareToXZ } from '../utils/GameEngine';
 
 const PALETTE = [
@@ -13,7 +14,7 @@ const PALETTE = [
 ];
 
 function Snake3D({ head, tail, index }) {
-  const { pts, angle } = useMemo(() => {
+  const { curve, headPt, angle } = useMemo(() => {
     const [hx, hz] = squareToXZ(Number(head));
     const [tx, tz] = squareToXZ(Number(tail));
     const dx = hx - tx;
@@ -22,67 +23,90 @@ function Snake3D({ head, tail, index }) {
     const nx = -dz / len;
     const nz = dx / len;
     const waves = Math.max(3, Math.round(len / 1.2));
-    const N = Math.max(20, Math.round(len * 5));
+    const N = Math.max(24, Math.round(len * 6));
 
-    const out = [];
+    const vectors = [];
     for (let i = 0; i <= N; i++) {
       const t = i / N;
       const env = Math.min(1, t * 5, (1 - t) * 5);
-      const off = Math.sin(t * waves * Math.PI) * 0.32 * env;
-      out.push({
-        x: tx + dx * t + nx * off,
-        z: tz + dz * t + nz * off,
-        r: 0.045 + 0.1 * Math.pow(t, 0.8),
-      });
+      const off = Math.sin(t * waves * Math.PI) * 0.34 * env;
+      const lift = Math.sin(t * Math.PI) * 0.04;
+      vectors.push(
+        new Vector3(
+          tx + dx * t + nx * off,
+          0.16 + lift,
+          tz + dz * t + nz * off
+        )
+      );
     }
-    const a = out[N];
-    const b = out[N - 1];
-    return { pts: out, angle: Math.atan2(a.x - b.x, a.z - b.z) };
+
+    const a = vectors[N];
+    const b = vectors[N - 1];
+    return {
+      curve: new CatmullRomCurve3(vectors),
+      headPt: a,
+      angle: Math.atan2(a.x - b.x, a.z - b.z),
+    };
   }, [head, tail]);
 
   const [dark, light] = PALETTE[index % PALETTE.length];
-  const headPt = pts[pts.length - 1];
 
   return (
     <group>
-      {pts.slice(0, -1).map((p, i) => (
-        <mesh key={i} position={[p.x, p.r + 0.06, p.z]} castShadow>
-          <sphereGeometry args={[p.r, 10, 10]} />
-          <meshStandardMaterial color={i % 6 < 3 ? dark : light} roughness={0.4} />
-        </mesh>
-      ))}
+      {/* Tubuh ular kontinu yang mulus */}
+      <mesh castShadow receiveShadow>
+        <tubeGeometry args={[curve, 48, 0.11, 12, false]} />
+        <meshStandardMaterial color={dark} roughness={0.35} metalness={0.1} />
+      </mesh>
 
-      {/* Kepala */}
-      <group position={[headPt.x, 0.24, headPt.z]} rotation={[0, angle, 0]}>
-        <mesh scale={[1.1, 0.85, 1.35]} castShadow>
+      {/* Garis punggung/corak terang */}
+      <mesh position={[0, 0.03, 0]}>
+        <tubeGeometry args={[curve, 48, 0.065, 8, false]} />
+        <meshStandardMaterial color={light} roughness={0.4} />
+      </mesh>
+
+      {/* Ujung ekor meruncing */}
+      <mesh position={[curve.getPoint(0).x, 0.14, curve.getPoint(0).z]} castShadow>
+        <coneGeometry args={[0.09, 0.22, 10]} />
+        <meshStandardMaterial color={light} roughness={0.4} />
+      </mesh>
+
+      {/* Kepala ular (diam) */}
+      <group position={[headPt.x, 0.25, headPt.z]} rotation={[0, angle, 0]}>
+        <mesh scale={[1.15, 0.8, 1.4]} castShadow>
           <sphereGeometry args={[0.17, 16, 16]} />
-          <meshStandardMaterial color={dark} roughness={0.4} />
+          <meshStandardMaterial color={dark} roughness={0.35} />
         </mesh>
+
+        {/* Mata */}
         {[-1, 1].map((s) => (
-          <group key={s} position={[s * 0.085, 0.09, 0.12]}>
+          <group key={s} position={[s * 0.09, 0.08, 0.11]}>
             <mesh>
-              <sphereGeometry args={[0.05, 12, 12]} />
+              <sphereGeometry args={[0.052, 12, 12]} />
               <meshStandardMaterial color="#ffffff" />
             </mesh>
-            <mesh position={[0, 0, 0.03]}>
-              <sphereGeometry args={[0.025, 8, 8]} />
+            <mesh position={[0, 0, 0.032]}>
+              <sphereGeometry args={[0.026, 8, 8]} />
               <meshStandardMaterial color="#111111" />
             </mesh>
           </group>
         ))}
-        {/* Lidah */}
-        <mesh position={[0, -0.02, 0.3]}>
-          <boxGeometry args={[0.025, 0.01, 0.16]} />
-          <meshStandardMaterial color="#e11d48" />
-        </mesh>
-        <mesh position={[-0.025, -0.02, 0.4]} rotation={[0, 0.5, 0]}>
-          <boxGeometry args={[0.015, 0.01, 0.08]} />
-          <meshStandardMaterial color="#e11d48" />
-        </mesh>
-        <mesh position={[0.025, -0.02, 0.4]} rotation={[0, -0.5, 0]}>
-          <boxGeometry args={[0.015, 0.01, 0.08]} />
-          <meshStandardMaterial color="#e11d48" />
-        </mesh>
+
+        {/* Lidah bercabang */}
+        <group position={[0, -0.02, 0.24]}>
+          <mesh>
+            <boxGeometry args={[0.022, 0.01, 0.14]} />
+            <meshStandardMaterial color="#e11d48" />
+          </mesh>
+          <mesh position={[-0.022, 0, 0.09]} rotation={[0, 0.5, 0]}>
+            <boxGeometry args={[0.014, 0.01, 0.07]} />
+            <meshStandardMaterial color="#e11d48" />
+          </mesh>
+          <mesh position={[0.022, 0, 0.09]} rotation={[0, -0.5, 0]}>
+            <boxGeometry args={[0.014, 0.01, 0.07]} />
+            <meshStandardMaterial color="#e11d48" />
+          </mesh>
+        </group>
       </group>
     </group>
   );
