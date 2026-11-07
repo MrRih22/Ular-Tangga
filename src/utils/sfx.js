@@ -256,4 +256,3 @@ export function setMusicMuted(m) {
   if (m) haltMusic();
   else if (musicWanted) startMusic();
 }
->>>>>>> 352e824 (Tambah musik latar dan tombol mute di GameScreen)
